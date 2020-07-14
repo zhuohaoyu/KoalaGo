@@ -8,6 +8,37 @@ import re
 from queue import Queue
 from urllib import parse
 
+# ---------- Arguments ----------
+THREAD_LIMIT = 80
+# Maximum thread limit
+
+DEPTH_LIMIT = 1000
+# Maximum depth limit
+
+FAILED_REQUESTS_COUNTER = 0
+# Number of failed requests
+
+SUCCESSFUL_REQUESTS_COUNTER = 0
+
+TIMEOUT_RETRY_LIMIT = 1.5
+# Maximum times of retrying
+
+TIMEOUT_LIMIT = 5
+# Maximum time of each retry
+
+SLEEP_TIME = 0
+# Sleep time after each request
+
+BLACKLISTED_FILES = [
+    ".rar", ".zip", ".7z", ".tar"
+    ".mp3", ".mp4", ".avi", ".flv", ".wav",
+    ".css", ".js", ".png", ".jpg", ".jpeg", ".gif", ".bmp", ".ico",
+    ".doc", ".docx", ".ppt", ".pptx", ".xls", ".xlsx", ".pdf"
+]
+# Ignoring any URL containing any of these words
+
+# ---------- End of Arguments ----------
+
 
 startTime = time.time()
 seedURL = "http://info.ruc.edu.cn"
@@ -16,36 +47,7 @@ URLDict = {}
 URLInQueue = set()
 URLDone = set()
 URLCount = 0
-
-
-THREAD_LIMIT = 80
-# Maximum thread limit
-
-DEPTH_LIMIT = 1000
-#Maximum depth limit
-
-FAILED_REQUESTS_COUNTER = 0
-#Number of failed requests
-
-SUCCESSFUL_REQUESTS_COUNTER = 0
-
-TIMEOUT_RETRY_LIMIT = 1.5
-#Maximum times of retrying
-
-TIMEOUT_LIMIT = 5
-#Maximum time of each retry
-
-SLEEP_TIME = 0
-
-BLACKLISTED_FILES = [
-    ".rar", ".zip", ".7z", ".tar"
-    ".mp3", ".mp4", ".avi", ".flv", ".wav",
-    ".css", ".js", ".png", ".jpg", ".jpeg", ".gif", ".bmp", ".ico",
-    ".doc", ".docx", ".ppt", ".pptx", ".xls", ".xlsx", ".pdf"
-]
-
 failedRequests = []
-
 requestHeaders = {
     "User-Agent" : "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/81.0.4044.122 Safari/537.36 ORZBot"
 }
@@ -56,7 +58,6 @@ def isURLAllowed(url):
         return True
     else:
         return False
-
 
 class crawlerThread(threading.Thread):
     def __init__(self, queue, threadID, lock):
@@ -105,10 +106,8 @@ class crawlerThread(threading.Thread):
             return []
         if req.status_code != 200 and req.status_code != 201:
             return []
-
         cont = req.text
         urls = re.findall(r'href=[\'"]?([^\'" >]+)', cont)
-
         cid = URLDict[url]
         with open("./data/" + str(cid), "w") as f:
             global SUCCESSFUL_REQUESTS_COUNTER
