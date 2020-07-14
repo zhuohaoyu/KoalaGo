@@ -9,7 +9,7 @@ from queue import Queue
 from urllib import parse
 
 # ---------- Arguments ----------
-THREAD_LIMIT = 80
+THREAD_LIMIT = 64
 # Maximum thread limit
 
 DEPTH_LIMIT = 1000
@@ -33,7 +33,8 @@ BLACKLISTED_FILES = [
     ".rar", ".zip", ".7z", ".tar"
     ".mp3", ".mp4", ".avi", ".flv", ".wav",
     ".css", ".js", ".png", ".jpg", ".jpeg", ".gif", ".bmp", ".ico",
-    ".doc", ".docx", ".ppt", ".pptx", ".xls", ".xlsx", ".pdf"
+    ".doc", ".docx", ".ppt", ".pptx", ".xls", ".xlsx", ".pdf",
+    "download", "upload"
 ]
 # Ignoring any URL containing any of these words
 
@@ -171,5 +172,6 @@ def main():
     for i in range(FAILED_REQUESTS_COUNTER):
         print(failedRequests[i])
     with open("filemap", "w") as f:
-        f.write(str(URLList))
+        for URL in URLList:
+            f.write(str(URL) + "\n")
 main()

@@ -2,8 +2,10 @@
 # _*_ coding: utf-8 _*_
 
 from bs4 import BeautifulSoup, Comment
-import jieba
+import hanlp
 import json
+import time
+
 
 
 DATA_DIR = "./data/"
@@ -16,23 +18,28 @@ OUTPUT_DIR = "./data_norm/"
 # Location for output Files
 
 BLACKLISTED_STRINGS = [
-    "您所在的位置", "分享到：", "公众微信二维码", "Copyright ©", "版权所有", "北京市海淀区中关村大街59号", "邮编：", 
+    "您所在的位置", "分享到：", "公众微信二维码", "Copyright ©", "版权所有", "北京市海淀区中关村大街59号", "邮编：100872", 
     "技术支持：", "传真："
     "color:" , "text-decoration:"
 ]
 
 
-class RawHTMLParser:
-    def __init__(self, content):
-        self.content = content
-        self.plainText = []
-    
 
+
+class RawHTMLParser:
+    def __init__(self, content, hanlptokenizer, fileid):
+        self.content = content
+        self.hanlptokenizer = hanlptokenizer
+        self.fileid = fileid
+        self.plainText = []
+        self.processed = []
+    
     def stringAllowed(self, st):
         for blk in BLACKLISTED_STRINGS:
             if blk in st:
                 return False
         return True
+
 
 
     def parseHTML(self):
@@ -41,7 +48,7 @@ class RawHTMLParser:
         # Binary files, Non-html files
         if soup.body == None:
             return []
-        
+
         # Remove all scripts
         for sc in soup.select('script'):
             sc.extract()
@@ -67,12 +74,22 @@ class RawHTMLParser:
             if len(istr) > 1 and self.stringAllowed(istr):
                 resultStrings.append(istr)
         self.plainText = resultStrings
-    
-    def processText(self):
-        pass
+        self.processed = self.hanlptokenizer(resultStrings)
+
+    def dump(self):
+        with open(OUTPUT_DIR + str(self.fileid) + ".json", "w") as f:
+            djson = json.dumps([self.plainText, self.processed])
+            f.write(djson)
+
 
 
 def main():
+    print("Initializing...")
+    time1 = time.time()
+    tokenizer = hanlp.load('PKU_NAME_MERGED_SIX_MONTHS_CONVSEG')
+    print("Initialized, Time Elapsed:", time.time() - time1)
+    time2 = time.time()
+
 
     with open(FILEMAP_DIR, "r") as fmp:
         filemap = fmp.readlines()
@@ -81,12 +98,13 @@ def main():
             try:
                 with open(DATA_DIR + str(fileid), "r") as fpage:
                     cont = fpage.read()
-                    rp = RawHTMLParser(cont)
+                    rp = RawHTMLParser(cont, tokenizer, fileid)
                     rp.parseHTML()
+                    rp.dump()
             except FileNotFoundError:
                 print("[BAD] File", fileid, "doesn't exist.")
             else:
-                print("[OK]",i.strip(), fileid)
+                print("[OK] #{id}  Time={tim:.2f}s, {pgs:.2f}Page/Sec".format(id = fileid, tim = time.time() - time2, pgs = (fileid + 1) / (time.time() - time2)))
             fileid = fileid + 1
     
 main()
