@@ -1,0 +1,13 @@
+{% extends 'base.html' %}
+
+{% block header %}
+  <h1>{% block title %}Result{% endblock %}</h1>
+{% endblock %}
+
+{% block content %}
+    {% for result in results %}
+        <a href="{{result[1]}}">{{result[0]}}</a>
+        <p>{{result[2] + '\n'}}</p>
+
+    {% endfor %}
+{% endblock %}

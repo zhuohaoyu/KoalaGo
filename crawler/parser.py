@@ -15,7 +15,7 @@ DATA_DIR = "./data/"
 FILEMAP_DIR = "./filemap"
 # Location for filemap
 
-OUTPUT_DIR = "./data_norm/"
+OUTPUT_DIR = "../data/"
 # Location for output Files
 
 BLACKLISTED_STRINGS = [
@@ -24,8 +24,12 @@ BLACKLISTED_STRINGS = [
     "color:" , "text-decoration:"
 ]
 
+STOP_WORDS = []
 
-
+def getStopwordsList():
+    global STOP_WORDS
+    with open("cn_stopwords.txt", "r") as f:
+        STOP_WORDS = [line.strip() for line in f.readlines()]
 
 class RawHTMLParser:
     def __init__(self, content, tokenizer, fileid, validfileid, fileurl):
@@ -84,13 +88,17 @@ class RawHTMLParser:
                 resultStrings.append(istr)
         self.plainText = resultStrings
         for res in resultStrings:
-            self.processed.append(self.tokenizer.cut(res))
+            curres = self.tokenizer.cut(res)
+            for word in curres:
+                if word not in STOP_WORDS:
+                    self.processed.append(word)
         # self.processed = self.tokenizer.cut(resultStrings)
         # print(self.title, self.time, self.plainText)
 
 
     def dump(self):
         with open(OUTPUT_DIR + str(self.newID) + ".json", "w") as f:
+            self.time.replace('发布时间：', '')
             djson = json.dumps({
                 "url": self.url,
                 "id": self.newID,
@@ -108,6 +116,7 @@ def main():
     time1 = time.time()
     # tokenizer = hanlp.load('PKU_NAME_MERGED_SIX_MONTHS_CONVSEG')
     tokenizer = pkuseg.pkuseg(model_name = 'medicine')
+    getStopwordsList()
     print("Initialized, Time Elapsed:", time.time() - time1)
     time2 = time.time()
 
@@ -122,8 +131,9 @@ def main():
                     cont = fpage.read()
                     rp = RawHTMLParser(cont, tokenizer, fileid, validfileid, i.strip())
                     rp.parseHTML()
-                    rp.dump()
-                    validfileid = validfileid + 1
+                    if len(rp.plainText) > 0:
+                        rp.dump()
+                        validfileid = validfileid + 1
             except FileNotFoundError:
                 print("[BAD] File", fileid, "doesn't exist.")
             else:

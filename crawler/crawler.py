@@ -9,6 +9,8 @@ from queue import Queue
 from urllib import parse
 
 # ---------- Arguments ----------
+DATA_DIR = "./data/"
+
 THREAD_LIMIT = 64
 # Maximum thread limit
 
@@ -110,7 +112,7 @@ class crawlerThread(threading.Thread):
         cont = req.text
         urls = re.findall(r'href=[\'"]?([^\'" >]+)', cont)
         cid = URLDict[url]
-        with open("./data/" + str(cid), "w") as f:
+        with open(DATA_DIR + str(cid), "w") as f:
             global SUCCESSFUL_REQUESTS_COUNTER
             SUCCESSFUL_REQUESTS_COUNTER = SUCCESSFUL_REQUESTS_COUNTER + 1
             f.write(str(req.text))
