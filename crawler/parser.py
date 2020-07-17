@@ -98,7 +98,7 @@ class RawHTMLParser:
 
     def dump(self):
         with open(OUTPUT_DIR + str(self.newID) + ".json", "w") as f:
-            self.time.replace('发布时间：', '')
+            self.time = self.time.replace('发布时间：', '')
             djson = json.dumps({
                 "url": self.url,
                 "id": self.newID,

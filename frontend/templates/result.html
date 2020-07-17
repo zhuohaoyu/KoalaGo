@@ -1,0 +1,18 @@
+{% extends 'base.html' %}
+{% from 'bootstrap/pagination.html' import render_pager, render_pagination %}
+
+
+{% block content %}
+    <h1>Results for 
+      <small class="text-muted">{{keyword}}</small>
+    </h1>
+    <br>
+    {% for result in results %}
+        <a href="{{result[1]}}">{{result[0]}}</a>
+        <p><small class="text-muted">{{result[2]}}</small></p>
+        {% autoescape off %}
+          <p> {{result[3]}} </p>
+        {% endautoescape %}
+        <br>
+    {% endfor %}
+{% endblock %}
