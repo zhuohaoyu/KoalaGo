@@ -1,3 +1,7 @@
-# SummerCrawler
+# KoalaGo
 
-A simple web page crawler for Summer Programming Practice @ RUC 2020
+A simple search engine with a crawler and simple frontend.
+
+Backend:  TF-IDF implemented with Python.
+
+Frontend: Flask with Bootstrap
