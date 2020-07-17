@@ -115,7 +115,14 @@ class SearchIndex:
                     min_res = pos
             if min_res == 1000000000:
                 min_res = 0
-            summary = cont_str[min_res: min_res + SNIPPET_LENGTH]
+            min_res -= 10
+            if min_res < 0:
+                min_res = 0
+            if min_res == 0:
+                summary = cont_str[min_res: min_res + SNIPPET_LENGTH]
+            else:
+                summary = '<small class=\"text-muted\">……</small>' + cont_str[min_res: min_res + SNIPPET_LENGTH]
+            
             for word in keywords:
                 summary = summary.replace(word, "<mark>" + word + "</mark>")
             if len(summary) == 0:
