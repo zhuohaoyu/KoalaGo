@@ -10,7 +10,7 @@ import time
 SrcEng = None
 
 # Location for dictionary file
-USER_DICT = "my_dict.txt"
+USER_DICT = "../my_dict.txt"
 
 # Location for dumped index file
 INDEX_DIR = "search_index.json"
@@ -19,7 +19,7 @@ INDEX_DIR = "search_index.json"
 PAGE_DATA_DIRECTORY = "../data/"
 
 # A constant affecting accuracy
-LENGTH_ALPHA = 0.33
+LENGTH_ALPHA = 0.3
 
 # Length of snippet generated for user
 SNIPPET_LENGTH = 150
@@ -27,35 +27,36 @@ SNIPPET_LENGTH = 150
 # Location for stopwords
 STOP_WORDS_DIR = "../crawler/cn_stopwords.txt"
 
-"""
+time_before_run = time.time()
+
 # LAC
 print("[INFO] Loading LAC")
 from LAC import LAC
 lac = LAC(mode = 'seg')
 lac.load_customization(USER_DICT, sep = '\n')
 print("[INFO] LAC Loaded")
-
+"""
 # jieba
 print("[INFO] Loading jieba")
 jieba.enable_paddle()
 # jieba.load_userdict(USER_DICT)
 print("[INFO] Jieba loaded")
-"""
 
-time_before_run = time.time()
+
+
 
 print("[INFO] Loading pkuseg")
 tokenizer = pkuseg.pkuseg(model_name = 'medicine', user_dict= USER_DICT)
 print("[INFO] pkuseg loaded.")
+"""
 
-STOP_WORDS = []
-
+STOP_WORDS = set()
 
 def getStopwordsList():
     global STOP_WORDS
     with open(STOP_WORDS_DIR, "r") as f:
-        STOP_WORDS = [line.strip() for line in f.readlines()]
-
+        for line in f.readlines():
+            STOP_WORDS.add(line.strip('\n'))
 
 class SearchIndex:
     def __init__(self, data_directory):
@@ -95,17 +96,22 @@ class SearchIndex:
             data = json.loads(data_str)
         self.pageStorage.append({
             'url' : data['url'],
-            'title' : data['title'],
+            'title' : data['title'].strip(),
             'time' : data['time'],
             'text' : data['text']
         })
+        factor = 1.0
+        if "academic_professor" in data['url'] or "academic_research_lab" in data['url']:
+            factor = 10
         curdict = defaultdict(int)
         for word in data['words']:
             curdict[word] += 1
         self.pageMap.append(curdict)
         for key in curdict:
-            # Calculate TF for each (term, doc)
-            self.index[key].append([fileid, 1 + math.log(curdict[key])]) # id, tf(key, curdoc)
+            if key in data['title'] and (factor > 1) and len(key) > 1:
+                self.index[key].append([fileid, 1 + math.log(curdict[key] * factor)]) # id, tf(key, curdoc)
+            else:
+                self.index[key].append([fileid, 1 + math.log(curdict[key])])
 
 
     def build(self):
@@ -165,15 +171,14 @@ class SearchIndex:
 
 
     def query(self, keyword, res_length):
-        keywords_raw = tokenizer.cut(keyword)
+        # keywords_raw = tokenizer.cut(keyword)
+        keywords_raw = lac.run(keyword)
         keywords = []
         for keyword in keywords_raw:
             if keyword not in STOP_WORDS:
                 keywords.append(keyword)
-        # keywords = [keys for keys in keywords not in STOP_WORDS]
         rawSearch = self.search(keywords, res_length)
         searchResult = []
-        
         for res in rawSearch:
             cont = self.pageStorage[res[3]]['text']
             cont_str = ""
@@ -182,7 +187,7 @@ class SearchIndex:
                 cont_str += sentence.strip()
             for word in keywords:
                 pos = cont_str.find(word)
-                if min_res > pos:
+                if min_res > pos and pos >= 0:
                     min_res = pos
             if min_res == 1000000000:
                 min_res = 0
@@ -196,10 +201,12 @@ class SearchIndex:
             
             for word in keywords:
                 summary = summary.replace(word, "<mark>" + word + "</mark>")
+
             if len(summary) == 0:
                 summary = "<p><small class=\"text-muted\">Summary Not Available.</small></p>"
-            elif len(cont_str) < min_res + SNIPPET_LENGTH:
+            elif len(cont_str) > min_res + SNIPPET_LENGTH:
                 summary += '<small class=\"text-muted\">……</small>'
+
             if len(res[2]) == 0:
                 res[2] = "Time not available."
             searchResult.append([res[0], res[1], res[2], summary])
@@ -209,7 +216,8 @@ class SearchIndex:
 
     def query_raw(self, keyword, res_length):
         # keywords = jieba.lcut_for_search(keyword, HMM = True)
-        keywords_raw = tokenizer.cut(keyword)
+        # keywords_raw = tokenizer.cut(keyword)
+        keywords_raw = lac.run(keyword)
         keywords = []
         for keyword in keywords_raw:
             if keyword not in STOP_WORDS:

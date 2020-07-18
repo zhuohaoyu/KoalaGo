@@ -14,13 +14,13 @@ print("[INFO] Loading jieba")
 jieba.enable_paddle()
 jieba.load_userdict(USER_DICT)
 print("[INFO] Jieba loaded")
-
+"""
 print("[INFO] Loading LAC")
 from LAC import LAC
 lac = LAC(mode = 'seg')
 lac.load_customization(USER_DICT, sep = '\n')
 print("[INFO] LAC Loaded")
-"""
+
 DATA_DIR = "./data/"
 # Location for raw data
 
@@ -36,14 +36,16 @@ BLACKLISTED_STRINGS = [
     "color:" , "text-decoration:"
 ]
 
-STOP_WORDS = []
+STOP_WORDS = set()
 
 titleSet = set()
 
 def getStopwordsList():
     global STOP_WORDS
     with open("cn_stopwords.txt", "r") as f:
-        STOP_WORDS = [line.strip() for line in f.readlines()]
+        # STOP_WORDS = [line.strip() for line in f.readlines()]
+        for line in f.readlines():
+            STOP_WORDS.add(line.strip('\n'))
 
 class RawHTMLParser:
     def __init__(self, content, tokenizer, fileid, validfileid, fileurl):
@@ -94,6 +96,11 @@ class RawHTMLParser:
         text = soup.body.find_all(text = True)
         self.title = soup.head.title.text.replace(' - 中国人民大学信息学院', '')
         resultStrings = []
+        # title_processed = self.tokenizer.cut(self.title.strip())
+        title_processed = lac.run(self.title.strip())
+        for word in title_processed:
+            if word not in STOP_WORDS:
+                self.processed.append(word)
         for i in text:
             istr = i.strip()
             if "发布时间：" in istr:
@@ -102,7 +109,7 @@ class RawHTMLParser:
                 resultStrings.append(istr)
         self.plainText = resultStrings
         self.time = self.time.replace('发布时间：', '')
-        # """
+        """
         for res in resultStrings:
             curres = self.tokenizer.cut(res)
             # curres = jieba.lcut_for_search(res)
@@ -115,9 +122,10 @@ class RawHTMLParser:
         cutall = lac.run(resultStrings)
         for cutres in cutall:
             for curword in cutres:
-                if curword not in STOP_WORDS:
-                    self.processed.append(curword)
-        """
+                cs = curword.strip()
+                if cs not in STOP_WORDS:
+                    self.processed.append(cs)
+        # """
         # self.processed = self.tokenizer.cut(resultStrings)
         # print(self.title, self.time, self.plainText)
 
