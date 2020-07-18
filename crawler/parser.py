@@ -74,6 +74,10 @@ class RawHTMLParser:
         # Binary files, Non-html files
         if soup.body == None:
             return []
+        
+        # Skip listing pages
+        if self.url.find("_list.php") != -1:
+            return []
 
         # Remove all scripts
         for sc in soup.select('script'):
@@ -147,7 +151,6 @@ class RawHTMLParser:
 def main():
     print("[INFO] Loading pkuseg")
     time1 = time.time()
-    # tokenizer = hanlp.load('PKU_NAME_MERGED_SIX_MONTHS_CONVSEG')
     tokenizer = pkuseg.pkuseg(model_name = 'medicine', user_dict=USER_DICT)
     getStopwordsList()
     print("[INFO] pkuseg initialized", time.time() - time1)

@@ -3,6 +3,7 @@
 
 
 {% block content %}
+  <div class="container">
     <h1>Results for 
       <small class="text-muted">{{keyword}}</small>
     </h1>
@@ -15,4 +16,5 @@
         {% endautoescape %}
         <br>
     {% endfor %}
+  </div>
 {% endblock %}
