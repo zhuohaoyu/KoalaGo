@@ -6,21 +6,87 @@ from collections import defaultdict
 import pkuseg
 import time
 
+
+SrcEng = None
+
+# Location for dictionary file
+USER_DICT = "my_dict.txt"
+
+# Location for dumped index file
+INDEX_DIR = "search_index.json"
+
+# Location for parsed pages
 PAGE_DATA_DIRECTORY = "../data/"
 
-LENGTH_ALPHA = 0.01
+# A constant affecting accuracy
+LENGTH_ALPHA = 0.33
 
+# Length of snippet generated for user
 SNIPPET_LENGTH = 150
+
+# Location for stopwords
+STOP_WORDS_DIR = "../crawler/cn_stopwords.txt"
+
+"""
+# LAC
+print("[INFO] Loading LAC")
+from LAC import LAC
+lac = LAC(mode = 'seg')
+lac.load_customization(USER_DICT, sep = '\n')
+print("[INFO] LAC Loaded")
+
+# jieba
+print("[INFO] Loading jieba")
+jieba.enable_paddle()
+# jieba.load_userdict(USER_DICT)
+print("[INFO] Jieba loaded")
+"""
+
+time_before_run = time.time()
+
+print("[INFO] Loading pkuseg")
+tokenizer = pkuseg.pkuseg(model_name = 'medicine', user_dict= USER_DICT)
+print("[INFO] pkuseg loaded.")
+
+STOP_WORDS = []
+
+
+def getStopwordsList():
+    global STOP_WORDS
+    with open(STOP_WORDS_DIR, "r") as f:
+        STOP_WORDS = [line.strip() for line in f.readlines()]
+
 
 class SearchIndex:
     def __init__(self, data_directory):
         self.index = defaultdict(list)
-        self.idf = {}
         self.pageStorage = []
         self.data_dir = data_directory
         self.pageMap = []
         self.pageNum = 0
-        self.tokenizer = pkuseg.pkuseg(model_name = 'medicine')
+
+
+    def dumpjson(self):
+        print("[INFO] Dumping data to ", INDEX_DIR)
+        out = {}
+        out["index"] = self.index
+        out["pageStorage"] = self.pageStorage
+        out["pageNum"] = self.pageNum
+        with open(INDEX_DIR, "w") as f:
+            strout = json.dumps(out)
+            f.write(strout)
+        print("[INFO] Data dumped to json.")
+
+
+    def loadjson(self):
+        print("[INFO] Loading data from ", INDEX_DIR)
+        with open(INDEX_DIR, "r") as f:
+            data = json.loads(f.read())
+            self.index = data["index"]
+            self.pageStorage = data["pageStorage"]
+            self.pageNum = data["pageNum"]
+            print("[INFO] Data loaded from json.")
+
 
     def processFile(self, data_file, fileid):
         data = {}
@@ -40,9 +106,10 @@ class SearchIndex:
         for key in curdict:
             # Calculate TF for each (term, doc)
             self.index[key].append([fileid, 1 + math.log(curdict[key])]) # id, tf(key, curdoc)
-        
+
 
     def build(self):
+        cidf = {}
         filenum = len([lists for lists in os.listdir(self.data_dir)])
         print("[INFO] ",filenum, "file(s) found in data directory")
         self.pageNum = filenum
@@ -50,17 +117,18 @@ class SearchIndex:
             self.processFile(self.data_dir + str(fileid) + ".json", fileid)
         # Calculate IDF for each term
         for key in self.index:
-            self.idf[key] = math.log(filenum / len(self.index[key]))
+            cidf[key] = math.log(filenum / len(self.index[key]))
         # Calculate TF-IDF for each (term, doc)
         for fileid in range(filenum):
             # curtfidf = {}
             length = 0.0
             for term in self.pageMap[fileid]:
-                val = self.idf[term] * (1 + math.log(self.pageMap[fileid][term]))
+                val = cidf[term] * (1 + math.log(self.pageMap[fileid][term]))
                 # curtfidf[term] = val
                 length += val * val
             # self.tfidf.append(curtfidf)
             self.pageStorage[fileid]['wlength'] = math.sqrt(length)
+
 
     def search(self, keywords, res_length):
         score = [0.0] * self.pageNum
@@ -78,7 +146,6 @@ class SearchIndex:
         result_unsorted = []
 
         for fileid in range(self.pageNum):
-            #  ????
             global LENGTH_ALPHA
             score[fileid] /= self.pageStorage[fileid]['wlength'] ** LENGTH_ALPHA
             if(score[fileid] > 0) :
@@ -98,8 +165,12 @@ class SearchIndex:
 
 
     def query(self, keyword, res_length):
-        keywords = self.tokenizer.cut(keyword)
-        # print(keywords)
+        keywords_raw = tokenizer.cut(keyword)
+        keywords = []
+        for keyword in keywords_raw:
+            if keyword not in STOP_WORDS:
+                keywords.append(keyword)
+        # keywords = [keys for keys in keywords not in STOP_WORDS]
         rawSearch = self.search(keywords, res_length)
         searchResult = []
         
@@ -127,7 +198,7 @@ class SearchIndex:
                 summary = summary.replace(word, "<mark>" + word + "</mark>")
             if len(summary) == 0:
                 summary = "<p><small class=\"text-muted\">Summary Not Available.</small></p>"
-            else:
+            elif len(cont_str) < min_res + SNIPPET_LENGTH:
                 summary += '<small class=\"text-muted\">……</small>'
             if len(res[2]) == 0:
                 res[2] = "Time not available."
@@ -137,24 +208,42 @@ class SearchIndex:
 
 
     def query_raw(self, keyword, res_length):
-        keywords = self.tokenizer.cut(keyword)
+        # keywords = jieba.lcut_for_search(keyword, HMM = True)
+        keywords_raw = tokenizer.cut(keyword)
+        keywords = []
+        for keyword in keywords_raw:
+            if keyword not in STOP_WORDS:
+                keywords.append(keyword)
+        # keywords = lac.run(keyword)
+        # keywords = jieba.lcut(keyword, HMM = True, use_paddle = True)
         return self.search(keywords, res_length)
 
 
 def main():
-    print("[INFO] Building Index for TF-IDX")
-    tim0 = time.time()
-    idx = SearchIndex(PAGE_DATA_DIRECTORY)
-    idx.build()
-    tim1 = time.time()
-    print("Initialization complete, time elapsed:", tim1 - tim0)
-    with open("search_test.txt", "r") as f:
-        txt = f.readlines()
-        for word in txt:
-            print(idx.query(word.strip(), 20))
+    global SrcEng
+    print("[INFO] Building Index for TF-IDF.")
+    SrcEng = SearchIndex(PAGE_DATA_DIRECTORY)
+    SrcEng.build()
+    print("[INFO] Initialization of TF-IDF completed.")
+    getStopwordsList()
+    print("[INFO] Time elapsed:", time.time() - time_before_run)
 
-print("[INFO] Building Index for TF-IDX.")
-SrcEng = SearchIndex(PAGE_DATA_DIRECTORY)
-SrcEng.build()
-print("[INFO] Initialization of TF-IDX completed.")
-# main()
+
+def build_dump():
+    global SrcEng
+    print("[INFO] Building Index for TF-IDF.")
+    SrcEng = SearchIndex(PAGE_DATA_DIRECTORY)
+    SrcEng.build()
+    print("[INFO] Initialization of TF-IDF completed.")
+    SrcEng.dumpjson()
+    getStopwordsList()
+    print("[INFO] Time elapsed:", time.time() - time_before_run)
+
+def build_load():
+    global SrcEng
+    SrcEng = SearchIndex(PAGE_DATA_DIRECTORY)
+    SrcEng.loadjson()
+    getStopwordsList()
+    print("[INFO] Time elapsed:", time.time() - time_before_run)
+
+build_load()

@@ -6,9 +6,21 @@ from bs4 import BeautifulSoup, Comment
 import pkuseg
 import json
 import time
+import jieba
 
+USER_DICT = '../my_dict.txt'
+"""
+print("[INFO] Loading jieba")
+jieba.enable_paddle()
+jieba.load_userdict(USER_DICT)
+print("[INFO] Jieba loaded")
 
-
+print("[INFO] Loading LAC")
+from LAC import LAC
+lac = LAC(mode = 'seg')
+lac.load_customization(USER_DICT, sep = '\n')
+print("[INFO] LAC Loaded")
+"""
 DATA_DIR = "./data/"
 # Location for raw data
 
@@ -25,6 +37,8 @@ BLACKLISTED_STRINGS = [
 ]
 
 STOP_WORDS = []
+
+titleSet = set()
 
 def getStopwordsList():
     global STOP_WORDS
@@ -78,7 +92,7 @@ class RawHTMLParser:
 
         # Find text & output
         text = soup.body.find_all(text = True)
-        self.title = soup.head.title.text
+        self.title = soup.head.title.text.replace(' - 中国人民大学信息学院', '')
         resultStrings = []
         for i in text:
             istr = i.strip()
@@ -87,22 +101,33 @@ class RawHTMLParser:
             elif len(istr) > 1 and self.stringAllowed(istr):
                 resultStrings.append(istr)
         self.plainText = resultStrings
+        self.time = self.time.replace('发布时间：', '')
+        # """
         for res in resultStrings:
             curres = self.tokenizer.cut(res)
+            # curres = jieba.lcut_for_search(res)
             for word in curres:
                 if word not in STOP_WORDS:
                     self.processed.append(word)
+        """
+        if len(resultStrings) == 0:
+            return
+        cutall = lac.run(resultStrings)
+        for cutres in cutall:
+            for curword in cutres:
+                if curword not in STOP_WORDS:
+                    self.processed.append(curword)
+        """
         # self.processed = self.tokenizer.cut(resultStrings)
         # print(self.title, self.time, self.plainText)
 
 
     def dump(self):
         with open(OUTPUT_DIR + str(self.newID) + ".json", "w") as f:
-            self.time = self.time.replace('发布时间：', '')
             djson = json.dumps({
                 "url": self.url,
                 "id": self.newID,
-                "title":self.title, 
+                "title":self.title,
                 "time": self.time, 
                 "text": self.plainText, 
                 "words":self.processed
@@ -112,12 +137,12 @@ class RawHTMLParser:
 
 
 def main():
-    print("Initializing...")
+    print("[INFO] Loading pkuseg")
     time1 = time.time()
     # tokenizer = hanlp.load('PKU_NAME_MERGED_SIX_MONTHS_CONVSEG')
-    tokenizer = pkuseg.pkuseg(model_name = 'medicine')
+    tokenizer = pkuseg.pkuseg(model_name = 'medicine', user_dict=USER_DICT)
     getStopwordsList()
-    print("Initialized, Time Elapsed:", time.time() - time1)
+    print("[INFO] pkuseg initialized", time.time() - time1)
     time2 = time.time()
 
 
@@ -131,12 +156,23 @@ def main():
                     cont = fpage.read()
                     rp = RawHTMLParser(cont, tokenizer, fileid, validfileid, i.strip())
                     rp.parseHTML()
-                    if len(rp.plainText) > 0:
+                    cur_text = ""
+                    for word in rp.plainText:
+                        wst = word.strip()
+                        if ("来源" not in wst) and ("作者" not in wst) and ("您所在的位置" not in wst) and ("新闻类型" not in wst) and ("浏览量" not in wst):
+                            cur_text += word.strip()
+                    rp.token = hash(cur_text)
+                    if rp.token in titleSet:
+                        print("[BAD] File", fileid, "is duplicated.")
+                    if len(rp.plainText) > 0 and rp.token not in titleSet:
                         rp.dump()
+                        titleSet.add(rp.token)
                         validfileid = validfileid + 1
             except FileNotFoundError:
+                pass
                 print("[BAD] File", fileid, "doesn't exist.")
             else:
+                pass
                 print("[OK] #{id}  Time={tim:.2f}s, {pgs:.2f}Page/Sec".format(id = fileid, tim = time.time() - time2, pgs = (fileid + 1) / (time.time() - time2)))
             fileid = fileid + 1
     

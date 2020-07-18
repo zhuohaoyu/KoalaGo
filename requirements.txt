@@ -1,0 +1,5 @@
+Flask
+Bootstrap-Flask
+pkuseg
+bs4
+requests

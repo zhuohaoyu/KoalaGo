@@ -11,7 +11,7 @@ from urllib import parse
 # ---------- Arguments ----------
 DATA_DIR = "./data/"
 
-THREAD_LIMIT = 64
+THREAD_LIMIT = 32
 # Maximum thread limit
 
 DEPTH_LIMIT = 1000
