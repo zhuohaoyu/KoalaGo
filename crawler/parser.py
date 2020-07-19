@@ -6,34 +6,38 @@ from bs4 import BeautifulSoup, Comment
 import pkuseg
 import json
 import time
-import jieba
 
-USER_DICT = '../my_dict.txt'
-"""
-print("[INFO] Loading jieba")
-jieba.enable_paddle()
-jieba.load_userdict(USER_DICT)
-print("[INFO] Jieba loaded")
-"""
+USER_DICT = '../my_dict_upper.txt'
+# Dictionary of entities for LAC, generated with HanLP, jieba and pkuseg.
+
+
 print("[INFO] Loading LAC")
 from LAC import LAC
 lac = LAC(mode = 'seg')
 lac.load_customization(USER_DICT, sep = '\n')
+
 print("[INFO] LAC Loaded")
 
-DATA_DIR = "./data/"
 # Location for raw data
+DATA_DIR = "./data/"
 
-FILEMAP_DIR = "./filemap"
 # Location for filemap
+FILEMAP_DIR = "./filemap"
 
-OUTPUT_DIR = "../data/"
 # Location for output Files
+OUTPUT_DIR = "../data/"
 
+# Ignore strings containing:
 BLACKLISTED_STRINGS = [
     "您所在的位置", "分享到：", "公众微信二维码", "Copyright ©", "版权所有", "北京市海淀区中关村大街59号", "邮编：100872", 
-    "技术支持：", "传真：", "浏览量",
-    "color:" , "text-decoration:"
+    "技术支持：", "传真：", "浏览量", "新闻类型",
+    "color:" , "text-decoration:",
+    "\n", "upload", "   ", "\t"
+]
+
+# Filter pages with url containing:
+BLACKLISTED_PAGES = [
+    "_list.php", "academic_faculty", "internation_info.php", "education_notice.php"
 ]
 
 STOP_WORDS = set()
@@ -45,12 +49,11 @@ def getStopwordsList():
     with open("cn_stopwords.txt", "r") as f:
         # STOP_WORDS = [line.strip() for line in f.readlines()]
         for line in f.readlines():
-            STOP_WORDS.add(line.strip('\n'))
+            STOP_WORDS.add(line.strip('\n').upper())
 
 class RawHTMLParser:
-    def __init__(self, content, tokenizer, fileid, validfileid, fileurl):
+    def __init__(self, content, fileid, validfileid, fileurl):
         self.content = content
-        self.tokenizer = tokenizer
         self.fileid = fileid
         self.title = ""
         self.time = ""
@@ -73,11 +76,12 @@ class RawHTMLParser:
 
         # Binary files, Non-html files
         if soup.body == None:
-            return []
+            return
         
-        # Skip listing pages
-        if self.url.find("_list.php") != -1:
-            return []
+        # Skip blacklisted pages
+        for item in BLACKLISTED_PAGES:
+            if item in self.url:
+                return
 
         # Remove all scripts
         for sc in soup.select('script'):
@@ -94,14 +98,14 @@ class RawHTMLParser:
 
         # Binary files, Non-html files
         if soup.body == None:
-            return []
+            return
 
         # Find text & output
         text = soup.body.find_all(text = True)
         self.title = soup.head.title.text.replace(' - 中国人民大学信息学院', '')
         resultStrings = []
-        # title_processed = self.tokenizer.cut(self.title.strip())
-        title_processed = lac.run(self.title.strip())
+
+        title_processed = lac.run(self.title.upper().strip())
         for word in title_processed:
             if word not in STOP_WORDS:
                 self.processed.append(word)
@@ -110,17 +114,10 @@ class RawHTMLParser:
             if "发布时间：" in istr:
                 self.time = istr
             elif len(istr) > 1 and self.stringAllowed(istr):
-                resultStrings.append(istr)
+                resultStrings.append(istr.upper())
         self.plainText = resultStrings
         self.time = self.time.replace('发布时间：', '')
-        """
-        for res in resultStrings:
-            curres = self.tokenizer.cut(res)
-            # curres = jieba.lcut_for_search(res)
-            for word in curres:
-                if word not in STOP_WORDS:
-                    self.processed.append(word)
-        """
+
         if len(resultStrings) == 0:
             return
         cutall = lac.run(resultStrings)
@@ -129,9 +126,6 @@ class RawHTMLParser:
                 cs = curword.strip()
                 if cs not in STOP_WORDS:
                     self.processed.append(cs)
-        # """
-        # self.processed = self.tokenizer.cut(resultStrings)
-        # print(self.title, self.time, self.plainText)
 
 
     def dump(self):
@@ -149,29 +143,28 @@ class RawHTMLParser:
 
 
 def main():
-    print("[INFO] Loading pkuseg")
-    time1 = time.time()
-    tokenizer = pkuseg.pkuseg(model_name = 'medicine', user_dict=USER_DICT)
-    getStopwordsList()
-    print("[INFO] pkuseg initialized", time.time() - time1)
-    time2 = time.time()
-
-
     with open(FILEMAP_DIR, "r") as fmp:
         filemap = fmp.readlines()
         fileid = 0
         validfileid = 0
+        time2 = time.time()
         for i in filemap:
             try:
                 with open(DATA_DIR + str(fileid), "r") as fpage:
                     cont = fpage.read()
-                    rp = RawHTMLParser(cont, tokenizer, fileid, validfileid, i.strip())
+                    rp = RawHTMLParser(cont, fileid, validfileid, i.strip())
                     rp.parseHTML()
                     cur_text = ""
                     for word in rp.plainText:
                         wst = word.strip()
-                        if ("来源" not in wst) and ("作者" not in wst) and ("您所在的位置" not in wst) and ("新闻类型" not in wst) and ("浏览量" not in wst):
-                            cur_text += word.strip()
+                        ignoreWord = False
+                        for badword in BLACKLISTED_STRINGS:
+                            if badword in wst:
+                                ignoreWord = True
+                                break
+                        if ignoreWord == False:
+                            cur_text += wst
+                    # Filter duplicated pages
                     rp.token = hash(cur_text)
                     if rp.token in titleSet:
                         print("[BAD] File", fileid, "is duplicated.")
@@ -185,6 +178,6 @@ def main():
             else:
                 pass
                 print("[OK] #{id}  Time={tim:.2f}s, {pgs:.2f}Page/Sec".format(id = fileid, tim = time.time() - time2, pgs = (fileid + 1) / (time.time() - time2)))
-            fileid = fileid + 1
+            fileid += 1
     
 main()

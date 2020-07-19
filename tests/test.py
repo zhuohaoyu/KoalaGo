@@ -32,7 +32,7 @@ def run_test():
             else:
                 print(rnk, test)
                 ans.append(rnk)
-                totalrank += rnk
+                totalrank += 1 / (rnk + 1)
     time1 = time.time()
     print("Time Elapsed:", time1 - time0)
     print("Callback Rate =", callback, ", Avg. Rank = ", totalrank / callback)
