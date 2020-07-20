@@ -4,12 +4,11 @@ import json
 import os
 import math
 from collections import defaultdict
-import pkuseg
 import time
 import re
 
 SrcEng = None
-
+# ----------Begin of Arguments----------
 # Location for dictionary file
 USER_DICT = "../my_dict_upper.txt"
 
@@ -27,6 +26,7 @@ SNIPPET_LENGTH = 150
 
 # Location for stopwords
 STOP_WORDS_DIR = "../crawler/cn_stopwords.txt"
+# ----------End of Arguments----------
 
 time_before_run = time.time()
 
@@ -35,20 +35,6 @@ print("[INFO] Loading LAC")
 lac = LAC(mode='seg')
 lac.load_customization(USER_DICT, sep='\n')
 print("[INFO] LAC Loaded")
-"""
-# jieba
-print("[INFO] Loading jieba")
-jieba.enable_paddle()
-# jieba.load_userdict(USER_DICT)
-print("[INFO] Jieba loaded")
-
-
-
-
-print("[INFO] Loading pkuseg")
-tokenizer = pkuseg.pkuseg(model_name = 'medicine', user_dict= USER_DICT)
-print("[INFO] pkuseg loaded.")
-"""
 
 STOP_WORDS = set()
 
@@ -225,16 +211,12 @@ class SearchIndex:
         return searchResult
 
     def query_raw(self, keyword, res_length):
-        # keywords = jieba.lcut_for_search(keyword, HMM = True)
-        # keywords_raw = tokenizer.cut(keyword)
         keywords_raw = lac.run(keyword.upper())
         keywords = []
         for keyword in keywords_raw:
             if keyword not in STOP_WORDS:
                 keywords.append(keyword)
         result = self.search(keywords, res_length)
-        # for item in result:
-            # print(item)
         return result
 
 
@@ -267,5 +249,6 @@ def build_load():
     print("[INFO] Time elapsed:", time.time() - time_before_run)
 
 
+# Use build_dump() on first run or after changing arguments, use build_load() later instead
 # build_load()
 build_dump()
