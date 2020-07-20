@@ -1,5 +1,5 @@
 Flask
 Bootstrap-Flask
-pkuseg
+lac
 bs4
 requests
